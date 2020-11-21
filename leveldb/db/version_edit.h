@@ -15,14 +15,19 @@ namespace leveldb {
 
 class VersionSet;
 
+// sstable文件的数据结构
 struct FileMetaData {
   FileMetaData() : refs(0), allowed_seeks(1 << 30), file_size(0) {}
 
   int refs;
   int allowed_seeks;  // Seeks allowed until compaction
+  // 用来标记一个sstable的唯一标识
   uint64_t number;
+  // 文件大小
   uint64_t file_size;    // File size in bytes
+  // 最小的key
   InternalKey smallest;  // Smallest internal key served by table
+  // 最大的key
   InternalKey largest;   // Largest internal key served by table
 };
 
@@ -96,8 +101,11 @@ class VersionEdit {
   bool has_next_file_number_;
   bool has_last_sequence_;
 
+  // 存放这个version的压缩指针，pair.first对应哪一个level， pair.second 对应哪一个key开始compaction
   std::vector<std::pair<int, InternalKey>> compact_pointers_;
+  // 本次操作要删除的文件
   DeletedFileSet deleted_files_;
+  // 本次操作新增的文件(一次版本修改在新增文件的集合)
   std::vector<std::pair<int, FileMetaData>> new_files_;
 };
 

@@ -1107,8 +1107,9 @@ int64_t DBImpl::TEST_MaxNextLevelOverlappingBytes() {
   return versions_->MaxNextLevelOverlappingBytes();
 }
 
-Status DBImpl::Get(const ReadOptions& options, const Slice& key,
-                   std::string* value) {
+Status DBImpl::Get(
+        const ReadOptions& options, const Slice& key,
+        std::string* value) {
   Status s;
   MutexLock l(&mutex_);
   SequenceNumber snapshot;
@@ -1378,7 +1379,12 @@ Status DBImpl::MakeRoomForWrite(bool force) {
   }
   return s;
 }
-
+/**
+ * 获取每一个级别中有多少个sst文件
+ * @param property
+ * @param value
+ * @return
+ */
 bool DBImpl::GetProperty(const Slice& property, std::string* value) {
   value->clear();
 

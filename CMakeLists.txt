@@ -8,6 +8,5 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # for debug, need to add this header path
 # because I have changed the directory structure
 include_directories(leveldb/include)
-
 add_subdirectory(leveldb)
 add_subdirectory(mytest)

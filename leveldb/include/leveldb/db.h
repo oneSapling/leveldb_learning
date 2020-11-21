@@ -114,6 +114,7 @@ class LEVELDB_EXPORT DB {
   // Valid property names include:
   //
   //  "leveldb.num-files-at-level<N>" - return the number of files at level <N>,
+  // 获取级别中有多少个 sstable
   //     where <N> is an ASCII representation of a level number (e.g. "0").
   //  "leveldb.stats" - returns a multi-line string that describes statistics
   //     about the internal operation of the DB.
