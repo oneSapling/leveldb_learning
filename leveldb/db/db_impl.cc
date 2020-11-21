@@ -91,6 +91,7 @@ static void ClipToRange(T* ptr, V minvalue, V maxvalue) {
   if (static_cast<V>(*ptr) > maxvalue) *ptr = maxvalue;
   if (static_cast<V>(*ptr) < minvalue) *ptr = minvalue;
 }
+
 Options SanitizeOptions(const std::string& dbname,
                         const InternalKeyComparator* icmp,
                         const InternalFilterPolicy* ipolicy,
@@ -589,6 +590,12 @@ void DBImpl::CompactRange(const Slice* begin, const Slice* end) {
   for (int level = 0; level < max_level_with_files; level++) {
     TEST_CompactRange(level, begin, end);
   }
+}
+
+// todo： 还在完善的函数，获取所有的版本信息
+void DBImpl::GetVersion(){
+    Version* cur = versions_->current();
+    versions_->getVersionFunc();
 }
 
 void DBImpl::TEST_CompactRange(int level, const Slice* begin,
@@ -1524,7 +1531,7 @@ Status DB::Open(const Options& options, const std::string& dbname, DB** dbptr) {
   return s;
 }
 
-Snapshot::~Snapshot() = default;
+    Snapshot::~Snapshot() = default;
 
 Status DestroyDB(const std::string& dbname, const Options& options) {
   Env* env = options.env;

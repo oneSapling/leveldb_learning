@@ -52,10 +52,12 @@ Versoin0 + VersoinEdit = Version1
   bool has_prev_log_number_;
   bool has_next_file_number_;
   bool has_last_sequence_;
-
-  std::vector<std::pair<int, InternalKey>> compact_pointers_;		// 存放这个version的压缩指针，pair.first对应哪一个level， pair.second 对应哪一个key开始compaction
-  DeletedFileSet deleted_files_;				// 本次操作要删除的文件
-  std::vector<std::pair<int, FileMetaData>> new_files_;	// 本次操作新增的文件
+// 存放这个version的压缩指针，pair.first对应哪一个level， pair.second 对应哪一个key开始compaction
+  std::vector<std::pair<int, InternalKey>> compact_pointers_;	
+// 本次操作要删除的文件	
+  DeletedFileSet deleted_files_;
+// 本次操作新增的文件	
+  std::vector<std::pair<int, FileMetaData>> new_files_;
 ```
 
 关注最后3个， compacton_pointers暂时不管，**delted_files_, new_files_是这次版本修改的差量。**
@@ -83,17 +85,20 @@ struct FileMetaData {
 
 ## 3. Version结构
 
+Version_set中定义了Version的数据结构
+
 来看看Version的成员：
 
 ```c++
  private:
  ...
-
- // 这里看出leveldb在系统中维护的version组成一个链表，且系统中可能存在多个VersionSet。每个Set维护一（多）组Version
+// 这里看出leveldb在系统中维护的version组成一个链表，且系统中可能存在多个VersionSet。
+// 每个Set维护一（多）组Version
   VersionSet* vset_;  // VersionSet to which this Version belongs
   Version* next_;     // Next version in linked list
   Version* prev_;     // Previous version in linked list
-  int refs_;          // Number of live refs to this version  // 引用计数，估计和回收Version相关
+// 引用计数，估计和回收Version相关
+  int refs_;          // Number of live refs to this version  
 
   // 每层的files, 每个file都是FileMetadata
   // List of files per level
@@ -175,9 +180,12 @@ VersionSet维护了所有有效的version，内部采用双链表的结构来维
 
 
 
-一个version维护整个系统中的所有sstable文件的元数据，versionset维护多个version，显然我们不可能无限增加version个数。那如何清理version？
+一个version维护整个系统中的所有sstable文件的元数据，versionset维护多个version，显然我们不可能无限增加version个数。
+那如何清理version？
 
-LevelDB会触发Compaction，能对一些文件进行清理操作，让数据更加有序，清理后的数据放到新的版本里面，而老的数据作为原始的素材，最终是要清理掉的，但是如果有读事务位于旧的文件，那么暂时就不能删除。因此利用引用计数，只要一个Verison还活着，就不允许删除该Verison管理的所有文件。当一个Version生命周期结束，它管理的所有文件的引用计数减1.
+LevelDB会触发Compaction，能对一些文件进行清理操作，让数据更加有序，清理后的数据放到新的版本里面，而老的数据作为原始的素材，
+最终是要清理掉的，但是如果有读事务位于旧的文件，那么暂时就不能删除。因此利用引用计数，只要一个Verison还活着，
+就不允许删除该Verison管理的所有文件。当一个Version生命周期结束，它管理的所有文件的引用计数减1.
 
 当一个version被销毁时，每个和它想关联的file的引用计数都会-1，当引用计数小于=0时，file被删除：
 

@@ -72,7 +72,7 @@ void test2()
     string key;
     string value;
     char buf[100];
-    for(unsigned int i = 0;i<=INT32_MAX;i++){
+    for(unsigned int i = 0;i<=INT32_MAX;i++) {
         fill(begin(buf),end(buf),'\0');
         sprintf(buf,"key%d",rand());
         key = buf;
@@ -219,6 +219,11 @@ void readTest(){
     sprintf(key,"%d",12);
     db->Get(leveldb::ReadOptions(), key, &get_value);
     cout << get_value;
+    db->GetVersion();
+}
+
+void VersionTest(){
+
 }
 
 int main()

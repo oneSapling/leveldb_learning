@@ -144,22 +144,28 @@ class Version {
   // REQUIRES: user portion of internal_key == user_key.
   void ForEachOverlapping(Slice user_key, Slice internal_key, void* arg,
                           bool (*func)(void*, int, FileMetaData*));
-
+// 这里看出leveldb在系统中维护的version组成一个链表，且系统中可能存在多个VersionSet。
+// 每个Set维护一（多）组Version
   VersionSet* vset_;  // VersionSet to which this Version belongs
+  // 链表中的下一个版本
   Version* next_;     // Next version in linked list
+  // 链表中的上一个版本
   Version* prev_;     // Previous version in linked list
+  // 引用计数，估计和回收Version相关
   int refs_;          // Number of live refs to this version
 
   // List of files per level
   std::vector<FileMetaData*> files_[config::kNumLevels];
 
   // Next file to compact based on seek stats.
+  // 根据查询头
   FileMetaData* file_to_compact_;
   int file_to_compact_level_;
 
   // Level that should be compacted next and its compaction score.
   // Score < 1 means compaction is not strictly needed.  These fields
   // are initialized by Finalize().
+  // compaction相关，根据 compactoin_score_ 决定是否需要compaction
   double compaction_score_;
   int compaction_level_;
 };
@@ -186,6 +192,13 @@ class VersionSet {
 
   // Return the current version.
   Version* current() const { return current_; }
+
+  // todo:获取verseion的链表
+  void getVersionFunc() const {
+      Version* cur = current_;
+      Version* nextVersion = current_->next_;
+      Version* preVersion = current_->prev_;
+  }
 
   // Return the current manifest file number
   uint64_t ManifestFileNumber() const { return manifest_file_number_; }
@@ -296,22 +309,31 @@ class VersionSet {
   Env* const env_;
   const std::string dbname_;
   const Options* const options_;
+  // tableCache
   TableCache* const table_cache_;
+  // 比较器
   const InternalKeyComparator icmp_;
   uint64_t next_file_number_;
+    // 当前manifest文件
   uint64_t manifest_file_number_;
+    // 这个序列号是用来表示Internal key中的序列号
   uint64_t last_sequence_;
+    // log文件序列号
   uint64_t log_number_;
   uint64_t prev_log_number_;  // 0 or backing store for memtable being compacted
 
   // Opened lazily
   WritableFile* descriptor_file_;
   log::Writer* descriptor_log_;
+  // version链表的头结点
+  // version是双链表的结构
   Version dummy_versions_;  // Head of circular doubly-linked list of versions.
+  // 当前版本
   Version* current_;        // == dummy_versions_.prev_
 
   // Per-level key at which the next compaction at that level should start.
   // Either an empty string, or a valid InternalKey.
+  // 下一次compaction时，每一层都从那个key开始
   std::string compact_pointer_[config::kNumLevels];
 };
 

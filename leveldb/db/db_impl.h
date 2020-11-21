@@ -48,6 +48,8 @@ class DBImpl : public DB {
   bool GetProperty(const Slice& property, std::string* value) override;
   void GetApproximateSizes(const Range* range, int n, uint64_t* sizes) override;
   void CompactRange(const Slice* begin, const Slice* end) override;
+  // 获取所有在考虑的版本信息
+  void GetVersion() override ;
 
   // Extra methods (for testing) that are not in the public DB interface
 
@@ -70,6 +72,7 @@ class DBImpl : public DB {
   // Samples are taken approximately once every config::kReadBytesPeriod
   // bytes.
   void RecordReadSample(Slice key);
+
 
  private:
   friend class DB;
