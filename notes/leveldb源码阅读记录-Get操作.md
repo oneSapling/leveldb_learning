@@ -55,7 +55,7 @@ struct LEVELDB_EXPORT ReadOptions {
 
 ### 2. Get函数
 
-吸纳再正式看看Get函数：
+呐!再正式看看Get函数：
 
 ```c++
 Status DBImpl::Get(const ReadOptions& options, const Slice& key,

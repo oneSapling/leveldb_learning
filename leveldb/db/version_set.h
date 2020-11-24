@@ -18,11 +18,13 @@
 #include <map>
 #include <set>
 #include <vector>
+#include <leveldb/table.h>
 
 #include "db/dbformat.h"
 #include "db/version_edit.h"
 #include "port/port.h"
 #include "port/thread_annotations.h"
+#include "filename.h"
 
 namespace leveldb {
 
@@ -193,13 +195,6 @@ class VersionSet {
   // Return the current version.
   Version* current() const { return current_; }
 
-  // todo:获取verseion的链表
-  void getVersionFunc() const {
-      Version* cur = current_;
-      Version* nextVersion = current_->next_;
-      Version* preVersion = current_->prev_;
-  }
-
   // Return the current manifest file number
   uint64_t ManifestFileNumber() const { return manifest_file_number_; }
 
@@ -214,7 +209,8 @@ class VersionSet {
       next_file_number_ = file_number;
     }
   }
-
+  // todo:获取verseion的链表
+  void getVersionFunc() const;
   // Return the number of Table files at the specified level.
   int NumLevelFiles(int level) const;
 
@@ -409,6 +405,7 @@ class Compaction {
   // all L >= level_ + 2).
   size_t level_ptrs_[config::kNumLevels];
 };
+
 
 }  // namespace leveldb
 

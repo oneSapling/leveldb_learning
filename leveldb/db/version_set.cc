@@ -1099,7 +1099,23 @@ int VersionSet::NumLevelFiles(int level) const {
   assert(level < config::kNumLevels);
   return current_->files_[level].size();
 }
-
+// todo:获取verseion的链表
+void VersionSet::getVersionFunc() const {
+    Version* cur = current_;
+    for(int leveli = 0;leveli < 7;leveli++) {
+        std::vector<FileMetaData*> levelFiles = current_->files_[leveli];
+        for(int sstablei = 0; sstablei < levelFiles.size();sstablei++) {
+            // 遍历
+            FileMetaData* sstabCur = levelFiles[sstablei];
+            Status s;
+            RandomAccessFile* file = nullptr;
+            Table* table = nullptr;
+            // 读出这个文件的名字
+            std::string fname = TableFileName(dbname_,sstabCur->number);
+            s = env_->NewRandomAccessFile(fname, &file);
+        }
+    }
+}
 const char* VersionSet::LevelSummary(LevelSummaryStorage* scratch) const {
   // Update code if kNumLevels changes
   static_assert(config::kNumLevels == 7, "");
