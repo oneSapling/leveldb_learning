@@ -82,6 +82,7 @@ class Block::Iter : public Iterator {
   uint32_t const num_restarts_;  // Number of uint32_t entries in restart array
 
   // current_ is offset in data_ of current entry.  >= restarts_ if !Valid
+  // 当前条目中的数据偏移
   uint32_t current_;
   uint32_t restart_index_;  // Index of restart block in which current_ falls
   std::string key_;

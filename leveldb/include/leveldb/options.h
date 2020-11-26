@@ -144,21 +144,26 @@ struct LEVELDB_EXPORT Options {
 };
 
 // Options that control read operations
+// 控制读操作的选项
 struct LEVELDB_EXPORT ReadOptions {
   ReadOptions() = default;
 
   // If true, all data read from underlying storage will be
   // verified against corresponding checksums.
+  // 如果为真，从底层存储器读取的所有数据将根据相应的校验和(checksums)进行验证。
   bool verify_checksums = false;
 
   // Should the data read for this iteration be cached in memory?
+  // 从这个迭代器中读出的record数据应该本缓存到内存中吗
   // Callers may wish to set this field to false for bulk scans.
+  // 大量扫描的时候应该把这个参数置为false
   bool fill_cache = true;
 
   // If "snapshot" is non-null, read as of the supplied snapshot
-  // (which must belong to the DB that is being read and which must
-  // not have been released).  If "snapshot" is null, use an implicit
-  // snapshot of the state at the beginning of this read operation.
+  // 快照不为空，从提供的快照里面取出来
+  // (which must belong to the DB that is being read and which must not have been released).
+  // If "snapshot" is null, use an implicit snapshot of the state at the beginning of this read operation.
+  // 如果快照是空的话，在读取开始的时候使用implicit snapshot快照
   const Snapshot* snapshot = nullptr;
 };
 

@@ -42,21 +42,27 @@ Status TableCache::FindTable(uint64_t file_number, uint64_t file_size,
                              Cache::Handle** handle) {
   Status s;
   char buf[sizeof(file_number)];
+    //根据file_num组一个key
   EncodeFixed64(buf, file_number);
   Slice key(buf, sizeof(buf));
+    //查找当前SSTable的信息是否已经在Table_cache中
   *handle = cache_->Lookup(key);
   if (*handle == nullptr) {
+      //如果不在缓存中的话，则打开SSTable
     std::string fname = TableFileName(dbname_, file_number);
     RandomAccessFile* file = nullptr;
     Table* table = nullptr;
+      //尝试ldb后缀
     s = env_->NewRandomAccessFile(fname, &file);
     if (!s.ok()) {
+        //尝试sst后缀的文件
       std::string old_fname = SSTTableFileName(dbname_, file_number);
       if (env_->NewRandomAccessFile(old_fname, &file).ok()) {
         s = Status::OK();
       }
     }
     if (s.ok()) {
+        //读取文件管理信息生成Table对象
       s = Table::Open(options_, file, file_size, &table);
     }
 
@@ -66,9 +72,11 @@ Status TableCache::FindTable(uint64_t file_number, uint64_t file_size,
       // We do not cache error results so that if the error is transient,
       // or somebody repairs the file, we recover automatically.
     } else {
+        //将内容缓存至TableCache中
       TableAndFile* tf = new TableAndFile;
       tf->file = file;
       tf->table = table;
+      // 把文件缓存到cache中，key为file_num组成的key
       *handle = cache_->Insert(key, tf, 1, &DeleteEntry);
     }
   }

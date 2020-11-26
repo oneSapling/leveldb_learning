@@ -15,7 +15,6 @@
 
 #include <algorithm>
 #include <string>
-
 #include "leveldb/export.h"
 #include "leveldb/slice.h"
 
@@ -53,7 +52,7 @@ class LEVELDB_EXPORT Status {
     return Status(kIOError, msg, msg2);
   }
 
-  // Returns true iff the status indicates success.
+  // Returns true iff(当且仅当) the status indicates success.表示过程成功
   bool ok() const { return (state_ == nullptr); }
 
   // Returns true iff the status indicates a NotFound error.

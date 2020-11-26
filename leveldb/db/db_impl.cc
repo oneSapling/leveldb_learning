@@ -1115,21 +1115,24 @@ int64_t DBImpl::TEST_MaxNextLevelOverlappingBytes() {
 }
 
 Status DBImpl::Get(
-        const ReadOptions& options, const Slice& key,
+        const ReadOptions& options,
+        const Slice& key,
         std::string* value) {
   Status s;
   MutexLock l(&mutex_);
   SequenceNumber snapshot;
   if (options.snapshot != nullptr) {
-    snapshot =
-        static_cast<const SnapshotImpl*>(options.snapshot)->sequence_number();
+    snapshot = static_cast<const SnapshotImpl*>(options.snapshot)->sequence_number();
   } else {
+      // 快照为空，就使用注释中所写的implicit snapshot(???),还没搞懂这个implicit快照是个啥东西
     snapshot = versions_->LastSequence();
   }
 
   MemTable* mem = mem_;
   MemTable* imm = imm_;
+  // 获取当前版本
   Version* current = versions_->current();
+    // 增加引用计数
   mem->Ref();
   if (imm != nullptr) imm->Ref();
   current->Ref();
@@ -1140,13 +1143,15 @@ Status DBImpl::Get(
   // Unlock while reading from files and memtables
   {
     mutex_.Unlock();
-    // First look in the memtable, then in the immutable memtable (if any).
+    // First look in the memtable,
+    // then in the immutable memtable (if any).
     LookupKey lkey(key, snapshot);
     if (mem->Get(lkey, value, &s)) {
       // Done
     } else if (imm != nullptr && imm->Get(lkey, value, &s)) {
       // Done
     } else {
+      // 从硬盘中取出数据
       s = current->Get(options, lkey, value, &stats);
       have_stat_update = true;
     }
@@ -1154,8 +1159,10 @@ Status DBImpl::Get(
   }
 
   if (have_stat_update && current->UpdateStats(stats)) {
+      // 可能触发查找的compaction
     MaybeScheduleCompaction();
   }
+// todo：减少引用的次数，用来干嘛的嘞？
   mem->Unref();
   if (imm != nullptr) imm->Unref();
   current->Unref();

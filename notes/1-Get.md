@@ -1,14 +1,12 @@
 ---
-title: leveldb源码阅读记录-Get操作
-categories: leveldb
-abbrlink: 6349fde1
-date: 2020-10-12 18:59:42
-tags:
+一.Get操作的流程
 ---
 
-上文我们说了leveldb的Put操作。简单来说就是先向log写入一条记录，用于保证本条记录的持久性，然后向memtable插入本条记录。当然这个过程还可能牵涉到compaction，但从宏观上就是这么简单的两步。
+上文我们说了leveldb的Put操作。
+1.简单来说就是先向log写入一条记录，用于保证本条记录的持久性.
+2.然后向memtable插入本条记录。当然这个过程还可能牵涉到compaction，但从宏观上就是这么简单的两步。
 
-今天我们再来谈谈leveldb的Get操作。
+下面看一下leveldb的Get操作。
 
 <!--more-->
 
@@ -17,11 +15,17 @@ tags:
 先看下Get的函数签名：
 
 ```c++
-Status DBImpl::Get(const ReadOptions& options, const Slice& key,
-                   std::string* value) ;
+Status DBImpl::Get(
+    const ReadOptions& options, 
+    const Slice& key,
+    std::string* value
+) ;
 ```
+get函数的参数解析：options，key，value
 
-第一个是读取操作的options，紧跟一个本次Get的key，将get到的value保存在最后一个参数中。
+options：是读取操作的options,ReadOptions是包含了许多控制读操作的选项
+key：本次Get的key，
+value：将get到的value保存在这个参数中。
 
 简单说一下第一个参数:
 
@@ -42,7 +46,7 @@ struct LEVELDB_EXPORT ReadOptions {
   // Callers may wish to set this field to false for bulk scans.
   bool fill_cache = true;
 
-    // 如果提供快照(non-null),则从快照种读。如果不提供(null)，则从implicit的快照种读
+    // 如果提供快照(non-null),则从快照种读。如果不提供(null)，则从implicit的快照中读
   // If "snapshot" is non-null, read as of the supplied snapshot
   // (which must belong to the DB that is being read and which must
   // not have been released).  If "snapshot" is null, use an implicit
@@ -92,14 +96,16 @@ Status DBImpl::Get(const ReadOptions& options, const Slice& key,
       // Done
     } else if (imm != nullptr && imm->Get(lkey, value, &s)) {	// 再向imm查询
       // Done
-    } else {		// 最后到外存的sstables中查询
+    } else {		
+// 最后到硬盘的sstables中查询
       s = current->Get(options, lkey, value, &stats);
       have_stat_update = true;
     }
     mutex_.Lock();
   }
 
-  if (have_stat_update && current->UpdateStats(stats)) {	// 更新状态，可能会触发基于seek的compaction
+  if (have_stat_update && current->UpdateStats(stats)) {	
+// 更新状态，可能会触发基于seek的compaction
     MaybeScheduleCompaction();
   }
     // 减少引用计数
@@ -111,28 +117,84 @@ Status DBImpl::Get(const ReadOptions& options, const Slice& key,
 
 ```
 
-整体代码逻辑也非常清晰。 先查memtable，再查imm，再查外存的sstables。
+查询分为几个步骤，
+先查memtable，
+再查imm，
+再查硬盘上存储的sstables。
 
-memtable和imm的查询都是基于SkipList的Iterator来查询。在memtable章节中已经说过，这里不再赘述。主要说一下
+memtable和imm的查询都是基于SkipList的Iterator来查询。在memtable章节中已经说过，这里不再赘述。
+下面简单介绍一下从硬盘中读取数据的操作：
 
 ```c++
  s = current->Get(options, lkey, value, &stats);
 ```
 
+--> 转到Version::Get（）函数中
+
 ```c++
 Status Version::Get(const ReadOptions& options, const LookupKey& k,
                     std::string* value, GetStats* stats) {
-  stats->seek_file = nullptr;
+stats->seek_file = nullptr;
   stats->seek_file_level = -1;
 
- ...
-     
+  struct State {
+    ...
+  };
+
+  State state;
+// 是否已经找到
+  state.found = false;
+  state.stats = stats;
+// 最后读取的文件
+  state.last_file_read = nullptr;
+// 最后读取文件的层数
+  state.last_file_read_level = -1;
+// 读操作的选项
+  state.options = &options;
+  state.ikey = k.internal_key();
+  state.vset = vset_;
+
+  state.saver.state = kNotFound;
+  state.saver.ucmp = vset_->icmp_.user_comparator();
+  state.saver.user_key = k.user_key();
+// 想要获取的value
+  state.saver.value = value;
 // 核心逻辑在这里
   ForEachOverlapping(state.saver.user_key, state.ikey, &state, &State::Match);
 
   return state.found ? state.s : Status::NotFound(Slice());
 }
 
+```
+
+下面来看一下ForEachOverlapping函数
+ForEachOverlapping(state.saver.user_key, state.ikey, &state, &State::Match)
+同样先看一下这几个参数
+state.saver.user_key,
+state.ikey, 
+&state, 
+&State::Match
+```c++
+// 定义查找操作的四种状态
+enum SaverState {
+    // key未找到
+  kNotFound,
+  // key找到了
+  kFound,
+  // 删除
+  kDeleted,
+  // 中断
+  kCorrupt,
+};
+//Saver负责记录输入的 比较器 和 user_key，以及输出的 SaverState 和 查找得到的 value。
+struct Saver {
+  //查找的状态
+  SaverState state;
+  const Comparator* ucmp;
+  Slice user_key;
+  // 查找到的value
+  std::string* value;
+};
 ```
 
 ```c++
@@ -188,38 +250,51 @@ void Version::ForEachOverlapping(Slice user_key, Slice internal_key, void* arg,
 
 ```c++
     static bool Match(void* arg, int level, FileMetaData* f) {
-   
-	  ...
-      // 从cache中获取
-      state->s = state->vset->table_cache_->Get(*state->options, f->number,
-                                                f->file_size, state->ikey,
-                                                &state->saver, SaveValue);
-      if (!state->s.ok()) {
-        state->found = true;
-        return false;
-      }
-      switch (state->saver.state) {
-        case kNotFound:
-          return true;  // Keep searching in other files
-        case kFound:
-          state->found = true;
+          State* state = reinterpret_cast<State*>(arg);
+    
+          if (state->stats->seek_file == nullptr &&
+              state->last_file_read != nullptr) {
+            // We have had more than one seek for this read.  Charge the 1st file.
+            state->stats->seek_file = state->last_file_read;
+            state->stats->seek_file_level = state->last_file_read_level;
+          }
+    
+          state -> last_file_read = f;
+          state -> last_file_read_level = level;
+          // 从缓存中查询
+          state->s = state->vset->table_cache_->Get(*state->options, f->number,
+                                                    f->file_size, state->ikey,
+                                                    &state->saver, SaveValue);
+          if (!state->s.ok()) {
+            state->found = true;
+            return false;
+          }
+    
+          switch (state->saver.state) {
+            case kNotFound:
+              return true;  // Keep searching in other files
+            case kFound:
+              state->found = true;
+              return false;
+            case kDeleted:
+              return false;
+              // 中断操作
+            case kCorrupt:
+              state->s =
+                  Status::Corruption("corrupted key for ", state->saver.user_key);
+              state->found = true;
+              return false;
+          }
+    
+          // Not reached. Added to avoid false compilation warnings of
+          // "control reaches end of non-void function".
           return false;
-        case kDeleted:
-          return false;
-        case kCorrupt:
-          state->s =
-              Status::Corruption("corrupted key for ", state->saver.user_key);
-          state->found = true;
-          return false;
-      }
-
-      // Not reached. Added to avoid false compilation warnings of
-      // "control reaches end of non-void function".
-      return false;
-    }
+        }
+      };
 ```
 
 实际的sstable来自cache（前提是开启了cache，否则依然是从文件系统中的文件中获取）。
+如果想要观察如何从获取真是的sstable请阅读cache笔记。
 
 ### 3. 总结：
 
@@ -227,6 +302,9 @@ void Version::ForEachOverlapping(Slice user_key, Slice internal_key, void* arg,
 
 ![](https://pic.downk.cc/item/5f82c4201cd1bbb86b405985.png)
 
-首先去mem中读，读不到，去imm中读，读不到，去底层sstable中读，因为sstable可能被cache到内存，所以可以去cache中读，如果系统没有配置cache，或者cache中没有cache到指定sstable，则到文件系统中读。
+1.首先去mem中读，读不到
+2.去imm中读，读不到
+3.去底层sstable中读
+4.因为sstable可能被cache到内存，所以可以去cache中读，如果系统没有配置cache，或者cache中没有找到指定的sstable，则到文件系统中读。
 
 关于RangeQuery操作，其实就是对Iterator的操作，而leveldb的Iterator已经在DBIter介绍，所以不再赘述。

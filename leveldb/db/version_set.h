@@ -61,8 +61,9 @@ bool SomeFileOverlapsRange(const InternalKeyComparator& icmp,
 
 class Version {
  public:
-  // Lookup the value for key.  If found, store it in *val and
-  // return OK.  Else return a non-OK status.  Fills *stats.
+  // Lookup the value for key.
+  // If found, store it in *val and return OK.
+  // Else return a non-OK status.  Fills *stats.
   // REQUIRES: lock is not held
   struct GetStats {
     FileMetaData* seek_file;

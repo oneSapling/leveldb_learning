@@ -1,23 +1,28 @@
 ---
-title: leveldb源码阅读记录-Cache
-categories: leveldb
-abbrlink: ce22f5e9
-date: 2020-10-12 18:22:00
-tags:
+二 . 缓存系统解析 - 数据结构 、 TableCache 和 BlockCahe
 ---
 
-leveldb是一种对写优化的kv存储系统，读性能有所下降，为了充分利用局部性原理，提高读性能，leveldb自己也设计了一个Cache结构。内部采用LRU替换策略。
+leveldb是一种对写优化的kv存储系统，主要是利用的HDD硬盘的顺序写远高于随机写的特性，来优化存储系统的写如性能。
 
-<!--more-->
+但是读性能有所下降，提高读性能最常用的方法就是cache。
+
+为了充分利用局部性原理，提高读性能，leveldb自己也设计了一个Cache结构，内部采用LRU替换策略。
+
+leveldb中的cache系统分为TableCache和BlockCache
 
 leveldb中的cache主要包含以下类：
-
+```
 - LRUHandle -- 数据节点
 - HandleTable -- HashTable
 - LRUCache
 - ShardedLRUCache
+```
 
-事实上到了第三个数据结构LRUCache，LRU的缓存管理数据结构已经实现了，之所以引入第四个数据结构，就是因为减少竞争。因为多线程访问需要加锁，为了减少竞争，提升效率，ShardedLRUCache内部有**16个LRUCach**e，查找key的时候，先计算属于哪一个LRUCache，然后在相应的LRUCache中上锁查找。
+事实上到了第三个数据结构LRUCache，LRU的缓存管理数据结构已经实现了，之所以引入第四个数据结构，就是因为减少竞争。
+
+因为多线程访问需要加锁，为了减少竞争，提升效率.
+
+ShardedLRUCache内部有**16个LRUCach**e，查找key的时候，先计算属于哪一个LRUCache，然后在相应的LRUCache中上锁查找,这种分段的hash结构很好的提高了并发能力。
 
 ```c++
 class ShardedLRUCache : public Cache {  
@@ -27,15 +32,22 @@ class ShardedLRUCache : public Cache {
 }
 ```
 
-这不是什么高深的思路，这种减少竞争的策略非常常见。因此，读懂缓存管理策略的关键在前三个数据结构。
+因此，读懂缓存管理策略的关键在前三个数据结构。
 
-LevelDB的Cache管理，维护有2个双向链表和一个哈希表。哈希表是非常容易理解的。如何确定一个key值到底存不存在，如果存在如何快速获取key值对应的value值。我们都学过数据结构，这活，哈希表是比较适合的。
+LevelDB的Cache管理，维护有2个双向链表和一个哈希表。
+
+哈希表是非常容易理解的。如何确定一个key值到底存不存在，如果存在如何快速获取key值对应的value值。这活，哈希表是比较适合的。
 
 注意，我们都知道，hash表存在一个重要的问题，就是碰撞，有可能多个不同的键值hash之后值相同，解决碰撞的一个重要思路是链表，将hash之后计算的key相同的元素链入同一个表头对应的链表。
 
+note：（ 这里使用链表结构来解决hash碰撞，其实也是有问题的。那就是，在链表中的数据量变的很大的时候，每次查询可能都要遍历整个链表来找到需要的数据，阿里巴巴团队在fast19上的一篇文章HotRing通过热指针的方式，
+来解决hash冲突之后每一次都要查询链表中全部数据的问题。- 后续详细学习一下HotRing的设计原理。）
+
 可是我们并不满意这种速度，LevelDB做了进一步的优化，即及时扩大hash桶的个数，尽可能地不会发生碰撞。因此LevelDB自己实现了一个hash表，即HandleTable数据结构。
 
-说句题外话，我不太喜欢数据结构的命名方式，比如HandleTable，命名就是个HashTable，如果出现Hash会好理解很多。这个名字还自罢了，LRUHandle这个名字更是让人摸不到头脑，明明就是一个数据节点，如果名字中出现Node，整个代码都会好理解很多。好了吐槽结束，看下HandleTable的数据结构：
+说句题外话，我不太喜欢数据结构的命名方式，比如HandleTable，命名就是个HashTable，如果出现Hash会好理解很多。
+
+这个名字还就算了，LRUHandle这个名字更是让人摸不到头脑，明明就是一个数据节点，如果名字中出现Node，整个代码都会好理解很多。好了吐槽结束，看下HandleTable的数据结构：
 
 ## 1. HandleTable
 
@@ -72,7 +84,15 @@ private:
   }
 ```
 
-insert函数首先在当前hashtable中尝试找到与插入key具有相同key的entry，即旧entry。 如果存在旧entry，则将旧的覆盖为新的节点。如果不存在旧的entry，则添加一个新的节点。同时可能需要resize hash， resize的条件为“当前插入的节点数比hashtable 的 bucket数大”，这样做的目的是尽量保证每个bucket下只有一个entry，这样search时间能够保证在O(1)。
+insert函数首先在当前hashtable中尝试找到与插入key具有相同key的entry，即旧entry：
+
+1.如果存在旧entry，则将旧的覆盖为新的节点。
+
+2.如果不存在旧的entry，则添加一个新的节点。
+
+同时可能需要resize hash， resize的条件为“当前插入的节点数比hashtable 的 bucket数大”，
+
+这样做的目的是尽量保证每个bucket下只有一个entry，这样search时间能够保证在O(1)。
 
 ### Resize
 
@@ -146,10 +166,6 @@ insert函数首先在当前hashtable中尝试找到与插入key具有相同key�
 leveldb的hashtable其实就是一个数组+链表的hashtable，只不过rehash操作做了优化，从而加快search的效率。
 
 <img src="https://cdn.jsdelivr.net/gh/ravenxrz/PicBed/img/绘图文件-第 3 页.png" style="zoom:50%;" />
-
-
-
-
 
 ## 2. LRUHandle
 
@@ -314,7 +330,7 @@ Cache::Handle* LRUCache::Insert(const Slice& key, uint32_t hash, void* value,
 
 2. 新增一个cache entry到cache中：
 
-   ```c++
+```c++
    if (capacity_ > 0) {
        e->refs++;  // for the cache's reference.
        e->in_cache = true;
@@ -322,9 +338,9 @@ Cache::Handle* LRUCache::Insert(const Slice& key, uint32_t hash, void* value,
        usage_ += charge;
        FinishErase(table_.Insert(e));	// 如果是更新，需要删除旧entry
      } 
-   ```
+```
 
-   ```c++
+```c++
      LRUHandle* Insert(LRUHandle* h) {
        LRUHandle** ptr = FindPointer(h->key(), h->hash);
        LRUHandle* old = *ptr;
@@ -340,11 +356,11 @@ Cache::Handle* LRUCache::Insert(const Slice& key, uint32_t hash, void* value,
        }
        return old;
      }
-   ```
+```
 
    Insert在Update的情况下，会返回旧的cache entry. 在FinishErase函数调用中决定该cache entry是删除还是移动到lru_链中：
 
-   ```c++
+```c++
    // If e != nullptr, finish removing *e from the cache; it has already been
    // removed from the hash table.  Return whether e != nullptr.
    bool LRUCache::FinishErase(LRUHandle* e) {
@@ -357,11 +373,11 @@ Cache::Handle* LRUCache::Insert(const Slice& key, uint32_t hash, void* value,
      }
      return e != nullptr;
    }
-   ```
+```
 
 3. LRU evict：
 
-   ```c++
+```c++
       // ！！！超过容量，需要剔除旧cache lru_.next存放的是最旧的cache entry
      while (usage_ > capacity_ && lru_.next != &lru_) {	// 移除旧cache entry，直到当前usage 小于等于 capacity。 或者最旧的entry已经是lru_头，即cache为空
        LRUHandle* old = lru_.next;
@@ -372,7 +388,7 @@ Cache::Handle* LRUCache::Insert(const Slice& key, uint32_t hash, void* value,
          assert(erased);
        }
      }
-   ```
+```
 
 LRU是如何体现的？
 
@@ -461,7 +477,8 @@ class ShardedLRUCache : public Cache {
 };
 ```
 
-如何做到减少竞争带来的延迟的？现在有多个cache，对于每个插入的key，做一次hash，然后取hash结果的高4位作为cache id，用于选择此次用哪个cache来缓存数据。这样就避免了只使用一个cache时，每次插入都要加锁。
+如何做到减少竞争带来的延迟的？现在有多个cache，对于每个插入的key，做一次hash，然后取hash结果的高4位作为cache id，用于选择此次用哪个cache来缓存数据。
+这样就避免了只使用一个cache时，每次插入都要加锁。
 
 ## 5. Cache应用1-TableCache
 
