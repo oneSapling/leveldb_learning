@@ -44,6 +44,11 @@ class TableCache {
   void Evict(uint64_t file_number);
 
  private:
+    /**
+     * FindTable是在cache中根据指定filenumnber,lookup到相关cache的handle
+     * 如果找到了，直接返回该handle
+     * 如果没找到，则插入到cache中
+     */
   Status FindTable(uint64_t file_number, uint64_t file_size, Cache::Handle**);
 
   Env* const env_;
